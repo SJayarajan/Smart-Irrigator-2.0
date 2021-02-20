@@ -1,4 +1,4 @@
-//SMART IRRIGATOR FOR TWO WATER CIRCUITS
+                                   //SMART IRRIGATOR FOR TWO WATER CIRCUITS
 //PROGRAMMING STARTED ON 1/2/2021
 //USES ARDUINO UNO WITH HC-06 AND DHT 22 SENSOR
 //USER TICKER LIBRARY FOR THREADING
@@ -43,12 +43,13 @@ void BT_Send();
 void BT_Read();
 void Pump1_Off_Man();
 void Pump2_Off_Man();
+void Check_Level();
 
 //EEPROM Values
 byte Water_Level_Ok;
-byte Pump1_CycleTime;
+long Pump1_CycleTime;
 byte Pump1_WaterTime;
-byte Pump2_CycleTime;
+long Pump2_CycleTime;
 byte Pump2_WaterTime;
 byte Pump1_Water_Time_Man;
 byte Pump2_Water_Time_Man;
@@ -80,11 +81,11 @@ Ticker PUMP_CONTROL(Pump_Out, 200);
 Ticker PUMP1_OFF(Pump1_Off,Pump1_WaterTime*1000);
 Ticker PUMP2_OFF(Pump2_Off, Pump2_WaterTime*1000);
 Ticker TEMP_HUM(Temp_Hum_Read, 4000);
-Ticker BT_SEND(BT_Send, 4000);
-Ticker BT_GET(BT_Read,100);
+Ticker BT_SEND(BT_Send, 500);
+Ticker BT_GET(BT_Read,1000);
 Ticker PUMP1_OFF_MAN(Pump1_Off_Man,Pump1_Water_Time_Man*1000);
 Ticker PUMP2_OFF_MAN(Pump2_Off_Man,Pump2_Water_Time_Man*1000);
-
+Ticker TANK_LEVEL(Check_Level,2000);
 
 //SETUP LOOP
 void setup() 
@@ -108,8 +109,8 @@ void setup()
  Pump2_WaterTime = EEPROM.read(4);
 
 //for test
- Pump1_CycleTime=60;
- Pump2_CycleTime=120;
+ //Pump1_CycleTime=60;
+ //Pump2_CycleTime=120;
 
 //INITILISING THE SOFTWARE SERIAL CLASSES
 BT.begin(9600);
@@ -125,7 +126,7 @@ PUMP_CONTROL.start();
 TEMP_HUM.start();
 BT_SEND.start();
 BT_GET.start();
-
+TANK_LEVEL.start();
 }
 
 
@@ -144,6 +145,7 @@ BT_SEND.update();
 BT_GET.update();
 PUMP1_OFF_MAN.update();
 PUMP2_OFF_MAN.update();
+TANK_LEVEL.update();
 }
 
 //SUPERVISORY LED BLINKER
@@ -190,17 +192,17 @@ void Time_Check()
     {
       Counter2=0;
     }
-  if(Counter1>=(Pump1_CycleTime))
+  if(Counter1>=(Pump1_CycleTime*3600))
     {
       Pump1_On = true;
       Counter1=0;
     }
-  if(Counter2>=(Pump2_CycleTime))
+  if(Counter2>=(Pump2_CycleTime*3600))
     {
       Pump2_On = true;
       Counter2=0;
     }
-  if(Counter1>=(Pump1_CycleTime) && Counter2>=(Pump2_CycleTime))
+  if(Counter1>=(Pump1_CycleTime*3600) && Counter2>=(Pump2_CycleTime*3600))
     {
      Pump1_On = true;
      Pump2_On = true;
@@ -215,7 +217,7 @@ void Pump_Out()
   
   if (Pump1_On == true)
      {
-      if(Level_Ok==1)
+      if(Water_Level_Ok==1)
       {digitalWrite(Pump1_OP, HIGH);}
          
       Pump1_On = false;
@@ -223,7 +225,7 @@ void Pump_Out()
        }
   if (Pump2_On == true)
      {
-      if(Level_Ok==1)
+      if(Water_Level_Ok==1)
       {digitalWrite(Pump2_OP, HIGH);}
             
       Pump2_On = false;
@@ -265,6 +267,7 @@ void SerialOut()
  Serial.println("Pump1 WaterTime(EEPROM)= " + String(EEPROM.read(2))); 
  Serial.println("Pump2 CycleTime(EEPROM)= " + String(EEPROM.read(3)));
  Serial.println("Pump2 WaterTime(EEPROM)= " + String(EEPROM.read(4)));
+ Serial.println("Pump1 Manual Time="+String(BT_Read_In1));
  Serial.println(F("=====================")); 
 }
 
@@ -322,19 +325,25 @@ if(BT_Read_In1==1)
     EEPROM.write(3,Pump2_CycleTime);
     EEPROM.write(4, Pump2_WaterTime);
     PUMP1_OFF.interval(Pump1_WaterTime*1000);
-    PUMP2_OFF.interval(Pump2_WaterTime*1000);
-    
-      
+    PUMP2_OFF.interval(Pump2_WaterTime*1000);     
        }
 //FOR MANUAL CONTROLS
 if(BT_Read_In1==2)
        {
-       PUMP1_OFF_MAN.interval( BT_Read_In1*1000);
+       PUMP1_OFF_MAN.interval(BT_Read_In2*1000);
        PUMP1_OFF_MAN.start();
-       PUMP2_OFF_MAN.interval( BT_Read_In2*1000);
+       if(Water_Level_Ok==1)
+       {digitalWrite(Pump1_OP, HIGH);}
+       
+       
+       PUMP2_OFF_MAN.interval(BT_Read_In3*1000);
+       if(Water_Level_Ok==1)
+       {digitalWrite(Pump2_OP, HIGH);}
        PUMP2_OFF_MAN.start(); 
        }
-digitalWrite(BT_Read_Write,0);
+BT.flush();
+BT_Read_In1=0;
+digitalWrite(BT_Read_Write,LOW);
  }
 
 //MANUAL PUMP-1 OFF CONTROL

@@ -2,6 +2,7 @@
 //PROGRAMMING STARTED ON 1/2/2021
 //USES ARDUINO UNO WITH HC-06 AND DHT 22 SENSOR
 //USER TICKER LIBRARY FOR THREADING
+//Interchanged the logic for pump 1 and 2 due to relay board
 
 /*EEPROM Storage
  * Pump 1 Cycle Time - 01
@@ -101,6 +102,8 @@ void setup()
  pinMode(Tank_Level_OK, OUTPUT);
  pinMode(Tank_Level_LO, OUTPUT);
  pinMode (BT_Read_Write,OUTPUT);
+ digitalWrite(Pump1_OP, HIGH);
+ digitalWrite(Pump2_OP, HIGH);
  
  //READING EEPROM VALUE
  Pump1_CycleTime = EEPROM.read(1);
@@ -218,7 +221,7 @@ void Pump_Out()
   if (Pump1_On == true)
      {
       if(Water_Level_Ok==1)
-      {digitalWrite(Pump1_OP, HIGH);}
+      {digitalWrite(Pump1_OP, LOW);}
          
       Pump1_On = false;
       PUMP1_OFF.start();
@@ -226,7 +229,7 @@ void Pump_Out()
   if (Pump2_On == true)
      {
       if(Water_Level_Ok==1)
-      {digitalWrite(Pump2_OP, HIGH);}
+      {digitalWrite(Pump2_OP, LOW);}
             
       Pump2_On = false;
       PUMP2_OFF.start();
@@ -236,14 +239,14 @@ void Pump_Out()
 //SWITCH OFF PUMPS AFTER TIMING
 void Pump1_Off()
 {
-digitalWrite(Pump1_OP, LOW);
+digitalWrite(Pump1_OP, HIGH);
 PUMP1_OFF.stop();  
 }
 
 //SWITCH OFF PUMP-2 AFTER TIMING
 void Pump2_Off()
 {
-digitalWrite(Pump2_OP, LOW);
+digitalWrite(Pump2_OP, HIGH);
 PUMP2_OFF.stop();    
 }
 
@@ -333,12 +336,12 @@ if(BT_Read_In1==2)
        PUMP1_OFF_MAN.interval(BT_Read_In2*1000);
        PUMP1_OFF_MAN.start();
        if(Water_Level_Ok==1)
-       {digitalWrite(Pump1_OP, HIGH);}
+       {digitalWrite(Pump1_OP, LOW);}
        
        
        PUMP2_OFF_MAN.interval(BT_Read_In3*1000);
        if(Water_Level_Ok==1)
-       {digitalWrite(Pump2_OP, HIGH);}
+       {digitalWrite(Pump2_OP, LOW);}
        PUMP2_OFF_MAN.start(); 
        }
 BT.flush();
@@ -349,13 +352,13 @@ digitalWrite(BT_Read_Write,LOW);
 //MANUAL PUMP-1 OFF CONTROL
 void Pump1_Off_Man()
 {
-digitalWrite(Pump1_OP, LOW);
+digitalWrite(Pump1_OP, HIGH);
 PUMP1_OFF_MAN.stop();  
 }
 
 //MANUAL PUMP-2 OFF CONTROL
 void Pump2_Off_Man()
 {
-digitalWrite(Pump2_OP, LOW);
+digitalWrite(Pump2_OP, HIGH);
 PUMP2_OFF_MAN.stop();  
 }

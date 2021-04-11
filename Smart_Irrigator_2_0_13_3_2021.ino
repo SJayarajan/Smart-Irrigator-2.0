@@ -1,10 +1,12 @@
-                                   //SMART IRRIGATOR FOR TWO WATER CIRCUITS
-//PROGRAMMING STARTED ON 1/2/2021
+    //PROGRAMMING STARTED ON 1/2/2021
 //USES ARDUINO UNO WITH HC-06 AND DHT 22 SENSOR
 //USER TICKER LIBRARY FOR THREADING
-//INTERCHANGED LOGIC FOR PUMP-1 AND PUMP-2 SINCE RELAY CARD IS ACTIVE LOW
-//POWER PROBLEM WAS RESETTING THE PROCESSOR...ADDED 2200 MFD 35 V CAPACITOR IN POWER TERMINALS.
-//FINAL TEST BURN TEST ON 13/3/2021
+//LOGIC FOR RELAY BOARD CHANGED TO ACTIVE LOW
+
+//CHANGES ON 11/4/2021
+//CONTER CYCLE TIME CHANGED TO MINUTES
+//THE CYCLE TIME TO BE ENTERED IN DAYS
+//REMOVED THE SERIAL OUT PROGRAM WHICH WAS FOR TESTING ONLY
 /*EEPROM Storage
  * Pump 1 Cycle Time - 01
  * Pump 2 Waiting Time - 02
@@ -13,7 +15,7 @@
 */
 
 
-//LIBRARRY ICLUSIONS
+//LIBRARY ICLUSIONS
 #include<EEPROM.h>
 #include<SD.h>
 #include <SoftwareSerial.h>
@@ -32,10 +34,10 @@
 #define BT_RX 9
 #define BT_TX 10
 #define DHT22_Pin 11
+#define Cab_Fan 12
 
 //SUB ROUTINE DEFINITIONS
 void Super_LED();
-void SerialOut();
 void Time_Check();
 void Pump_Out();
 void Pump1_Off();
@@ -46,6 +48,7 @@ void BT_Read();
 void Pump1_Off_Man();
 void Pump2_Off_Man();
 void Check_Level();
+void Read_Control_Cab_Temp();
 
 //EEPROM Values
 byte Water_Level_Ok;
@@ -68,26 +71,28 @@ long Counter1, Counter2;
 bool Pump1_On, Pump2_On;
 long LED_Counter;
 byte Level_Ok;
-float Temp_C;
-float Hum;
+int Temp_C;
+int Hum;
+float Cabinet_Temp;
+int Cab_Temp;
 
 //CLASS DEFINITION FOR SOFTWARE SERIAL AND DTH22
 SoftwareSerial BT(BT_TX,BT_RX); 
 DHT Temp_Hum(DHT22_Pin, DHTTYPE);
 
 //ENABLING TICKER SUB ROUTINES
-Ticker SUPLED(Super_LED, 500); 
-Ticker SERIAL_OP(SerialOut, 5000);
-Ticker COUNTER_MAIN(Time_Check, 1000);
-Ticker PUMP_CONTROL(Pump_Out, 200);
+Ticker SUPLED(Super_LED, 1000); 
+Ticker COUNTER_MAIN(Time_Check, 60000);
+Ticker PUMP_CONTROL(Pump_Out, 500);
 Ticker PUMP1_OFF(Pump1_Off,Pump1_WaterTime*1000);
 Ticker PUMP2_OFF(Pump2_Off, Pump2_WaterTime*1000);
-Ticker TEMP_HUM(Temp_Hum_Read, 4000);
-Ticker BT_SEND(BT_Send, 500);
-Ticker BT_GET(BT_Read,1000);
+Ticker TEMP_HUM(Temp_Hum_Read, 3000);
+Ticker BT_SEND(BT_Send, 1000);
+Ticker BT_GET(BT_Read,500);
 Ticker PUMP1_OFF_MAN(Pump1_Off_Man,Pump1_Water_Time_Man*1000);
 Ticker PUMP2_OFF_MAN(Pump2_Off_Man,Pump2_Water_Time_Man*1000);
-Ticker TANK_LEVEL(Check_Level,2000);
+Ticker TANK_LEVEL(Check_Level,4000);
+Ticker CABINET_T(Read_Control_Cab_Temp,5000);
 
 //SETUP LOOP
 void setup() 
@@ -102,15 +107,19 @@ void setup()
  pinMode(Supp_LED, OUTPUT);
  pinMode(Tank_Level_OK, OUTPUT);
  pinMode(Tank_Level_LO, OUTPUT);
- pinMode (BT_Read_Write,OUTPUT);
+ pinMode(BT_Read_Write,OUTPUT);
  digitalWrite(Pump1_OP, HIGH);
  digitalWrite(Pump2_OP, HIGH);
+ pinMode(Cab_Fan,OUTPUT
+
+ );
  
  //READING EEPROM VALUE
  Pump1_CycleTime = EEPROM.read(1);
  Pump1_WaterTime = EEPROM.read(2);
  Pump2_CycleTime = EEPROM.read(3);
  Pump2_WaterTime = EEPROM.read(4);
+
 
 
 //INITILISING THE SOFTWARE SERIAL CLASSES
@@ -121,13 +130,14 @@ Serial.begin(9600);
 
 //START TICHER TIMERS
 SUPLED.start();
-SERIAL_OP.start();
+//SERIAL_OP.start();
 COUNTER_MAIN.start();
 PUMP_CONTROL.start();
 TEMP_HUM.start();
 BT_SEND.start();
 BT_GET.start();
 TANK_LEVEL.start();
+CABINET_T.start();
 }
 
 
@@ -136,7 +146,7 @@ void loop()
 {
 //UPDATE ALL THE TICKER LOOPS
 SUPLED.update(); 
-SERIAL_OP.update();
+//SERIAL_OP.update();
 COUNTER_MAIN.update();
 PUMP_CONTROL.update();
 PUMP1_OFF.update();
@@ -147,6 +157,8 @@ BT_GET.update();
 PUMP1_OFF_MAN.update();
 PUMP2_OFF_MAN.update();
 TANK_LEVEL.update();
+CABINET_T.update();
+
 }
 
 //SUPERVISORY LED BLINKER
@@ -185,25 +197,25 @@ void Time_Check()
 {
   Counter1=Counter1+1;
   Counter2=Counter2+1;
-  if(Counter1>=86400)
+  if(Counter1>=345600)
     {
       Counter1=0;
     }
-  if(Counter2>=86400)
+  if(Counter2>=345600)
     {
       Counter2=0;
     }
-  if(Counter1>=(Pump1_CycleTime*3600))
+  if(Counter1>=(Pump1_CycleTime*1440))
     {
       Pump1_On = true;
       Counter1=0;
     }
-  if(Counter2>=(Pump2_CycleTime*3600))
+  if(Counter2>=(Pump2_CycleTime*1440))
     {
       Pump2_On = true;
       Counter2=0;
     }
-  if(Counter1>=(Pump1_CycleTime*3600) && Counter2>=(Pump2_CycleTime*3600))
+  if(Counter1>=(Pump1_CycleTime*1440) && Counter2>=(Pump2_CycleTime*1440))
     {
      Pump1_On = true;
      Pump2_On = true;
@@ -248,29 +260,6 @@ digitalWrite(Pump2_OP, HIGH);
 PUMP2_OFF.stop();    
 }
 
-//SEND OUT SERIAL FOR DEBUGGING
-void SerialOut()
-{
- Serial.println(F("====================="));  
- Serial.println("Humidity: " + String(Hum));
- Serial.println("Temperature: " + String(Temp_C));
- Serial.println("Counter 1(sec): " + String(Counter1));
- Serial.println("Counter 2(sec): " + String(Counter2));
- Serial.println("Pump1 CycleTime= " + String(Pump1_CycleTime));
- Serial.println("Pump1 WaterTime= " + String(Pump1_WaterTime)); 
- Serial.println("Pump2 CycleTime= " + String(Pump2_CycleTime));
- Serial.println("Pump2 WaterTime= " + String(Pump2_WaterTime));
- Serial.println("Tank Level Input= " + String(Level_Ok));
- Serial.println("Tank Level Status= " + String(digitalRead(Tank_Level_OK)));
- Serial.println("Pump-1 ON:" + String(digitalRead(4)));
- Serial.println("Pump-2 ON:" + String(digitalRead(4)));
- Serial.println("Pump1 CycleTime(EEPROM)= " + String(EEPROM.read(1)));
- Serial.println("Pump1 WaterTime(EEPROM)= " + String(EEPROM.read(2))); 
- Serial.println("Pump2 CycleTime(EEPROM)= " + String(EEPROM.read(3)));
- Serial.println("Pump2 WaterTime(EEPROM)= " + String(EEPROM.read(4)));
- Serial.println("Pump1 Manual Time="+String(BT_Read_In1));
- Serial.println(F("=====================")); 
-}
 
 //SEND OUT BLUETOOTH SIGNALS FOR ANDROID DEVICE
 void BT_Send()
@@ -287,11 +276,17 @@ void BT_Send()
   BT.print(",");
   BT.print(Pump2_WaterTime);
   BT.print(",");
+  BT.print(Pump1_CycleTime); 
+  BT.print(",");
+  BT.print(Pump2_CycleTime);
+  BT.print(",");
   BT.print(digitalRead(Tank_Level_OK));
   BT.print(",");
   BT.print(digitalRead(4));
   BT.print(",");
   BT.print(digitalRead(5));
+  BT.print(",");
+  BT.print(Cab_Temp);
 }
 
 //TEMPERATURE AND HUMIDITY FROM DTH22
@@ -326,7 +321,9 @@ if(BT_Read_In1==1)
     EEPROM.write(3,Pump2_CycleTime);
     EEPROM.write(4, Pump2_WaterTime);
     PUMP1_OFF.interval(Pump1_WaterTime*1000);
-    PUMP2_OFF.interval(Pump2_WaterTime*1000);     
+    PUMP2_OFF.interval(Pump2_WaterTime*1000);
+    Counter1=0;
+    Counter2=0;    
        }
 //FOR MANUAL CONTROLS
 if(BT_Read_In1==2)
@@ -360,3 +357,20 @@ void Pump2_Off_Man()
 digitalWrite(Pump2_OP, HIGH);
 PUMP2_OFF_MAN.stop();  
 }
+
+//CABINET FAN CONTROL
+void Read_Control_Cab_Temp()
+{
+Cabinet_Temp=(analogRead(A0)/1023.0)*500;
+Cab_Temp=Cabinet_Temp;
+if (Cabinet_Temp>=32.0)
+ {
+  digitalWrite(Cab_Fan,HIGH);
+ }
+
+if (Cabinet_Temp<=25.0)
+  {
+  digitalWrite(Cab_Fan,LOW);
+  }
+
+}                              
